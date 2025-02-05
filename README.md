@@ -101,8 +101,7 @@ In more detail: https://confluence.light-it.tools/display/PRCNP/Libraries+licens
 
 ## <span style="color: #9f4a19">Setting up Dev:</span>
 
-Clone down this repository:
-`https://gitlab.light-it.tools/breef/frontend.git` or `git@gitlab.light-it.tools:breef/frontend.git`
+Clone down this repository. You will need `node` and `npm` installed globally on your machine.
 
 cd your-project (FRONTEND)/
 
@@ -118,18 +117,6 @@ Run `nx g @nrwl/react:component my-component --project=my-app` to generate a new
 ### Building
 
 Run `nx build my-app` to build the project. The build artifacts will be stored in the `dist/` directory. Use the `--prod` flag for a production build.
-
-## <span style="color: #9f4a19">Deploying/Publishing:</span>
-
-https://confluence.light-it.tools/display/PRCNP/%5BWIP%5D+NEW+Git+flow
-
-## <span style="color: #9f4a19">Git:</span>
-
-https://confluence.light-it.tools/display/PRCNP/%5BWIP%5D+NEW+Git+flow
-
-## <span style="color: #9f4a19">Environments:</span>
-
-https://confluence.light-it.tools/display/PRCNP/Front-end+.env+variables
 
 ## <span style="color: #9f4a19">Testing:</span>
 
@@ -231,28 +218,3 @@ breef/
         |   └──index.ts
         └── index.ts
 </pre>
-
-## <span style="color: #9f4a19">API:</span>
-
-API Documentation:
-
-https://dev.new.breef.com/api/swagger/
-https://staging.new.breef.com/api/swagger/
-
-### Understand your workspace
-
-Run `nx dep-graph` to see a diagram of the dependencies of your projects.
-
-### Further help
-
-Visit the [Nx Documentation](https://nx.dev) to learn more.
-
-###
-
-<div style="color: #9f4a19; background-color: #9f4a19; height: 1px; margin-bottom: 15px"/>
-
-###
-
-<div style="color: #9f4a19; background-color: #9f4a19; height: 1px; margin-bottom: 15px"/>
-
-###
