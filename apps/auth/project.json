@@ -1,0 +1,61 @@
+{
+    "name": "auth",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "apps/auth",
+    "projectType": "application",
+    "targets": {
+        "build": {
+            "executor": "@nrwl/next:build",
+            "outputs": ["{options.outputPath}"],
+            "defaultConfiguration": "production",
+            "options": {
+                "root": "apps/auth",
+                "outputPath": "dist/apps/auth"
+            },
+            "configurations": {
+                "production": {},
+                "development": {
+                    "outputPath": "apps/auth"
+                }
+            }
+        },
+        "serve": {
+            "executor": "@nrwl/next:server",
+            "options": {
+                "buildTarget": "auth:build",
+                "dev": true
+            },
+            "configurations": {
+                "production": {
+                    "buildTarget": "auth:build:production",
+                    "dev": false
+                },
+                "development": {
+                    "buildTarget": "auth:build:development",
+                    "dev": true
+                }
+            },
+            "defaultConfiguration": "development"
+        },
+        "export": {
+            "executor": "@nrwl/next:export",
+            "options": {
+                "buildTarget": "auth:build:production"
+            }
+        },
+        "lint": {
+            "executor": "@nrwl/linter:eslint",
+            "outputs": ["{options.outputFile}"],
+            "options": {
+                "lintFilePatterns": ["apps/auth/**/*.{ts,tsx,js,jsx}"]
+            }
+        },
+        "typecheck": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "tsc --noEmit -p apps/auth/tsconfig.json"
+            }
+        }
+    },
+    "tags": []
+}

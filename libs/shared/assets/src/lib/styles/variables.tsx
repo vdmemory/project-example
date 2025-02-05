@@ -1,0 +1,61 @@
+export const colors = {
+    lightPurple: '#FCFBFE',
+    mainPurple: '#F9F7F3',
+    darkPurple: '#F1EAFB',
+    darkestPurple: '#EEDEF7',
+    solidPurple: '#9571C7',
+    mainOrange: '#D96E34',
+    darkOrange: '#9F4B13',
+    lightOrange: '#FFF3E3',
+    transparentOrange: '#FBF2EA',
+    mainBlack: '#000000',
+    mainWhite: '#FFFFFF',
+    mainRed: '#FF551F',
+    solidRed: '#E02929',
+    mainGray: '#BFBBB3',
+    mainPink: '#F0EAFA',
+    lightGrey: '#FAFAF9',
+    blackGrey: '#7b7b7b',
+    strokeGray: '#BDBDC1',
+    secondaryGray: '#C4C4C4',
+    transparentGrey: '#F0F0F0',
+    shadowGray: '#EFEDEA',
+    defaultPlaceholder: 'rgba(118, 118, 118, 0.3)',
+    mainPlaceholder: 'rgba(0,0,0,0.2)',
+    bgDisabled: '#CCCCCC',
+    bgModal: 'rgb(241 234 251 / 50%)',
+    mainSuccess: '#00e676',
+    mainError: '#ff1744',
+    mainBeige: '#FBEDE1',
+    mainGreen: '#60D038',
+    mainSave: '#CEBF34',
+    mainBlue: '#DAECFF',
+    darkBlue: '#78BCFF',
+    lightBlue: '#EDF6FF',
+    lightGreen: '#F1F9E4',
+    green: '#46AE21',
+    transparentGreen: '#EAFBEE',
+    lightYellow: '#FEFFD1',
+    yellowGreen: '#878911',
+    turquoise: '#24665A',
+};
+
+export const fonts = {
+    default: 'NeueHaasDisplay',
+    defaultText: 'NeueHaasText',
+    accent: 'SuisseIntlMono',
+    biroScriptPlus: 'BiroScriptPlusRegular',
+    biroScriptPlusBold: 'BiroScriptPlusBold',
+};
+
+export const mediaScreen = {
+    mobile: 'max-width: 1024px', //'max-width: 375px',
+    maxMobile: 'max-width: 1024px', //'max-width: 428px',
+    minTablet: 'max-width: 1024px', //'max-width: 512px',
+    tablet: 'max-width: 1024px', //'max-width: 768px',
+    laptop: 'max-width: 1024px', //'max-width: 1024px',
+};
+
+export const mediaScreenMin = {
+    laptop: 'min-width: 1200px',
+};

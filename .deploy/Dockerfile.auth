@@ -1,0 +1,32 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE as build
+
+# Set app working directory
+WORKDIR /app
+
+# Disable telemetry collects completely anonymous telemetry
+ENV NEXT_TELEMETRY_DISABLED 1
+
+# Set memory usage of the node globally
+ENV NODE_OPTIONS=--max_old_space_size=4096
+
+# Build the Auth application
+RUN yarn build:auth && yarn nx reset && yarn cypress cache clear
+
+# Prepare nginx image
+FROM nginx:1.23-alpine
+
+# Remove default nginx index page
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copy nginx config for serving static
+COPY --from=build /app/.deploy/config/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy build from the first stage
+COPY --from=build /app/dist/apps/auth/exported /usr/share/nginx/html
+
+# Set port
+EXPOSE 80
+
+# Run nginx
+ENTRYPOINT ["nginx", "-g", "daemon off;"]

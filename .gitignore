@@ -1,0 +1,54 @@
+# See http://help.github.com/ignore-files/ for more about ignoring files.
+
+/apps/agency/tsconfig.tsbuildinfo
+/apps/client/tsconfig.tsbuildinfo
+/apps/auth/tsconfig.tsbuildinfo
+
+# compiled output
+/dist
+/tmp
+/out-tsc
+
+# dependencies
+/node_modules
+
+# enviroment
+.env.local
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+/.vscode
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# env
+.env
+
+# Next.js
+.next
+
+# nx-cloud
+nx-cloud.env
+
+# cache
+/.nx/cache

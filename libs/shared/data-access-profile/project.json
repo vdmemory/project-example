@@ -1,0 +1,34 @@
+{
+    "name": "shared-data-access-profile",
+    "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "libs/shared/data-access-profile/src",
+    "projectType": "library",
+    "tags": [],
+    "targets": {
+        "lint": {
+            "executor": "@nrwl/linter:eslint",
+            "outputs": ["{options.outputFile}"],
+            "options": {
+                "lintFilePatterns": [
+                    "libs/shared/data-access-profile/**/*.{ts,tsx,js,jsx}"
+                ]
+            }
+        },
+        "test": {
+            "executor": "@nrwl/jest:jest",
+            "outputs": [
+                "{workspaceRoot}/coverage/libs/shared/data-access-profile"
+            ],
+            "options": {
+                "jestConfig": "libs/shared/data-access-profile/jest.config.ts",
+                "passWithNoTests": true
+            }
+        },
+        "typecheck": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "tsc --noEmit -p libs/shared/data-access-profile/tsconfig.json"
+            }
+        }
+    }
+}

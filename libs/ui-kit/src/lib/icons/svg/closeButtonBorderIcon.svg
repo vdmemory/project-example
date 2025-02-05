@@ -1,0 +1,10 @@
+<svg width="41" height="41" viewBox="0 0 41 41" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="7" y="7" width="28" height="28.0001" fill="white" shape-rendering="crispEdges" />
+    <rect x="7.5" y="7.5" width="27" height="27.0001" stroke="black" shape-rendering="crispEdges" />
+    <line x1="0.486488" y1="-0.486488" x2="18.973" y2="-0.486488"
+        transform="matrix(0.707105 -0.707108 0.707105 0.707108 14.5894 27.7852)" stroke="#2F2F2F"
+        stroke-width="0.972975" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="0.486488" y1="-0.486488" x2="18.973" y2="-0.486488"
+        transform="matrix(-0.707105 -0.707108 0.707105 -0.707108 28.3493 27.3264)" stroke="#2F2F2F"
+        stroke-width="0.972975" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

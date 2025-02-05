@@ -1,0 +1,52 @@
+version: '3.7'
+
+networks:
+    breef_test:
+        name: breef-test-$CI_PIPELINE_ID
+        driver: bridge
+
+services:
+    breef-backend:
+        image: $BACKEND_DOCKER_REGISTRY_URL:latest
+        container_name: breef-backend-$CI_PIPELINE_ID
+        depends_on:
+            - breef_db
+            - breef_redis
+        env_file:
+            - ./compose_env/.env.backend
+        entrypoint: .deploy/bash/entrypoint.sh
+        command: backend_testing
+        networks:
+            - breef_test
+        healthcheck:
+            test: curl --fail http://localhost:8051/api/health || exit 1
+            interval: 60s
+            retries: 5
+            start_period: 30s
+            timeout: 10s
+
+    breef_celery:
+        image: $BACKEND_DOCKER_REGISTRY_URL:latest
+        container_name: breef-celery-$CI_PIPELINE_ID
+        depends_on:
+            - breef-backend
+        entrypoint: .deploy/bash/entrypoint.sh
+        command: celery
+        env_file:
+            - ./compose_env/.env.backend
+        networks:
+            - breef_test
+
+    breef_db:
+        image: postgres:13
+        container_name: breef-db-$CI_PIPELINE_ID
+        env_file:
+            - ./compose_env/.env.database
+        networks:
+            - breef_test
+
+    breef_redis:
+        image: redis:6.2.6
+        container_name: breef-redis-$CI_PIPELINE_ID
+        networks:
+            - breef_test

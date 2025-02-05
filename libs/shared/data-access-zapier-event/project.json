@@ -1,0 +1,28 @@
+{
+    "name": "shared-data-access-zapier-event",
+    "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "libs/shared/data-access-zapier-event/src",
+    "projectType": "library",
+    "tags": [],
+    "targets": {
+        "lint": {
+            "executor": "@nrwl/linter:eslint",
+            "outputs": ["{options.outputFile}"],
+            "options": {
+                "lintFilePatterns": [
+                    "libs/shared/data-access-zapier-event/**/*.{ts,tsx,js,jsx}"
+                ]
+            }
+        },
+        "test": {
+            "executor": "@nrwl/jest:jest",
+            "outputs": [
+                "{workspaceRoot}/coverage/libs/shared/data-access-zapier-event"
+            ],
+            "options": {
+                "jestConfig": "libs/shared/data-access-zapier-event/jest.config.ts",
+                "passWithNoTests": true
+            }
+        }
+    }
+}

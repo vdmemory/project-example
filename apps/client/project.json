@@ -1,0 +1,61 @@
+{
+    "name": "client",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "apps/client",
+    "projectType": "application",
+    "targets": {
+        "build": {
+            "executor": "@nrwl/next:build",
+            "outputs": ["{options.outputPath}"],
+            "defaultConfiguration": "production",
+            "options": {
+                "root": "apps/client",
+                "outputPath": "dist/apps/client"
+            },
+            "configurations": {
+                "production": {},
+                "development": {
+                    "outputPath": "apps/client"
+                }
+            }
+        },
+        "serve": {
+            "executor": "@nrwl/next:server",
+            "options": {
+                "buildTarget": "client:build",
+                "dev": true
+            },
+            "configurations": {
+                "production": {
+                    "buildTarget": "client:build:production",
+                    "dev": false
+                },
+                "development": {
+                    "buildTarget": "client:build:development",
+                    "dev": true
+                }
+            },
+            "defaultConfiguration": "development"
+        },
+        "export": {
+            "executor": "@nrwl/next:export",
+            "options": {
+                "buildTarget": "client:build:production"
+            }
+        },
+        "lint": {
+            "executor": "@nrwl/linter:eslint",
+            "outputs": ["{options.outputFile}"],
+            "options": {
+                "lintFilePatterns": ["apps/client/**/*.{ts,tsx,js,jsx}"]
+            }
+        },
+        "typecheck": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "tsc --noEmit -p apps/client/tsconfig.json"
+            }
+        }
+    },
+    "tags": []
+}

@@ -1,0 +1,20 @@
+version: '3.7'
+
+networks:
+    breef_test:
+        name: breef-test-$CI_PIPELINE_ID
+        driver: bridge
+
+services:
+    breef_autotests:
+        image: $AUTOTESTS_DOCKER_REGISTRY_URL:latest
+        container_name: breef-autotests-$CI_PIPELINE_ID
+        networks:
+            - breef_test
+        depends_on:
+            auth-web-app:
+                condition: service_healthy
+            client-web-app:
+                condition: service_healthy
+            agency-web-app:
+                condition: service_healthy

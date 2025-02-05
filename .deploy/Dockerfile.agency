@@ -1,0 +1,64 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE as build
+
+# Set app working directory
+WORKDIR /app
+
+# Disable telemetry collects completely anonymous telemetry
+ENV NEXT_TELEMETRY_DISABLED 1
+
+# Set memory usage of the node globally
+ENV NODE_OPTIONS=--max_old_space_size=4096
+
+# Build the agency application
+RUN NX_DAEMON=false yarn build:agency && yarn nx reset && yarn cypress cache clear
+
+RUN rm -rf .deploy/compose
+RUN rm -rf .deploy/config
+RUN rm -rf .deploy/Dockerfile
+RUN rm -rf .deploy/Dockerfile.auth
+RUN rm -rf .deploy/Dockerfile.client
+RUN rm -rf .deploy/Dockerfile.agency
+RUN rm -rf .deploy/Dockerfile.curator
+RUN rm -rf .husky
+RUN rm -rf libs
+RUN rm -rf tools
+RUN rm -rf .editorconfig
+RUN rm -rf .env.example
+RUN rm -rf .eslintignore
+RUN rm -rf .eslintrc.json
+RUN rm -rf .gitignore
+RUN rm -rf .gitlab-ci.yml
+RUN rm -rf .prettierignore
+RUN rm -rf .prettierrc
+RUN rm -rf babel.config.json
+RUN rm -rf docker-compose-local.yml
+RUN rm -rf jest.config.ts
+RUN rm -rf jest.preset.js
+RUN rm -rf jest.setup.js
+RUN rm -rf migrations.json
+RUN rm -rf nx-cloud.env.example
+RUN rm -rf README.md
+RUN rm -rf tsconfig.base.json
+RUN rm -rf ./apps/client
+RUN rm -rf ./apps/client-e2e
+RUN rm -rf ./apps/auth
+RUN rm -rf ./apps/auth-e2e
+RUN rm -rf ./apps/agency-e2e
+RUN rm -rf ./apps/agency/components
+RUN rm -rf ./apps/agency/hoc
+RUN rm -rf ./apps/agency/hooks
+RUN rm -rf ./apps/agency/pages
+RUN rm -rf ./apps/agency/setup
+RUN rm -rf ./apps/agency/.eslintrc.json
+RUN rm -rf ./apps/agency/index.d.ts
+RUN rm -rf ./apps/agency/jest.config.ts
+RUN rm -rf ./apps/agency/next-env.d.ts
+RUN rm -rf ./apps/agency/tsconfig.json
+RUN rm -rf ./apps/agency/tsconfig.spec.json
+
+# Expose the port
+EXPOSE 4202
+
+# Docker entrypoint
+ENTRYPOINT ["sh", ".deploy/bash/entrypoint.sh"]

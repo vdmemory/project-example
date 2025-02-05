@@ -1,0 +1,17 @@
+{
+    "bracketSpacing": true,
+    "jsxSingleQuote": false,
+    "arrowParens": "avoid",
+    "semi": true,
+    "singleQuote": true,
+    "tabWidth": 4,
+    "trailingComma": "all",
+    "overrides": [
+        {
+            "files": "*.svg",
+            "options": {
+                "parser": "babel"
+            }
+        }
+    ]
+}

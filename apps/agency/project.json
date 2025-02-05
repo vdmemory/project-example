@@ -1,0 +1,61 @@
+{
+    "name": "agency",
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "apps/agency",
+    "projectType": "application",
+    "targets": {
+        "build": {
+            "executor": "@nrwl/next:build",
+            "outputs": ["{options.outputPath}"],
+            "defaultConfiguration": "production",
+            "options": {
+                "root": "apps/agency",
+                "outputPath": "dist/apps/agency"
+            },
+            "configurations": {
+                "production": {},
+                "development": {
+                    "outputPath": "apps/agency"
+                }
+            }
+        },
+        "serve": {
+            "executor": "@nrwl/next:server",
+            "options": {
+                "buildTarget": "agency:build",
+                "dev": true
+            },
+            "configurations": {
+                "production": {
+                    "buildTarget": "agency:build:production",
+                    "dev": false
+                },
+                "development": {
+                    "buildTarget": "agency:build:development",
+                    "dev": true
+                }
+            },
+            "defaultConfiguration": "development"
+        },
+        "export": {
+            "executor": "@nrwl/next:export",
+            "options": {
+                "buildTarget": "agency:build:production"
+            }
+        },
+        "lint": {
+            "executor": "@nrwl/linter:eslint",
+            "outputs": ["{options.outputFile}"],
+            "options": {
+                "lintFilePatterns": ["apps/agency/**/*.{ts,tsx,js,jsx}"]
+            }
+        },
+        "typecheck": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "tsc --noEmit -p apps/agency/tsconfig.json"
+            }
+        }
+    },
+    "tags": []
+}

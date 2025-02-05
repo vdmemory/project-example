@@ -1,0 +1,34 @@
+{
+    "name": "shared-feature-project-dashboard-agency",
+    "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "libs/shared/feature-project-dashboard-agency/src",
+    "projectType": "library",
+    "tags": [],
+    "targets": {
+        "lint": {
+            "executor": "@nrwl/linter:eslint",
+            "outputs": ["{options.outputFile}"],
+            "options": {
+                "lintFilePatterns": [
+                    "libs/shared/feature-project-dashboard-agency/**/*.{ts,tsx,js,jsx}"
+                ]
+            }
+        },
+        "test": {
+            "executor": "@nrwl/jest:jest",
+            "outputs": [
+                "{workspaceRoot}/coverage/libs/shared/feature-project-dashboard-agency"
+            ],
+            "options": {
+                "jestConfig": "libs/shared/feature-project-dashboard-agency/jest.config.ts",
+                "passWithNoTests": true
+            }
+        },
+        "typecheck": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "tsc --noEmit -p libs/shared/feature-project-dashboard-agency/tsconfig.json"
+            }
+        }
+    }
+}

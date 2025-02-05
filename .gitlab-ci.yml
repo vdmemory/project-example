@@ -1,0 +1,1167 @@
+variables:
+    DOCKER_FILE_PATH: .deploy/Dockerfile
+    AGENCY_DOCKER_FILE_PATH: .deploy/Dockerfile.agency
+    AUTH_DOCKER_FILE_PATH: .deploy/Dockerfile.auth
+    CLIENT_DOCKER_FILE_PATH: .deploy/Dockerfile.client
+    CURATOR_DOCKER_FILE_PATH: .deploy/Dockerfile.curator
+
+    BASE_IMAGE: $CI_PROJECT_PATH:$CI_COMMIT_SHA
+    CONTAINER_NAME: breef-frontend-$CI_PIPELINE_ID
+
+    NX_HEAD: $CI_COMMIT_SHA
+    NX_BASE: $CI_COMMIT_BEFORE_SHA
+
+    AUTH_COMMIT_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_AUTH_REPOSITORY_NAME:${CI_COMMIT_SHA}
+    AUTH_RELEASE_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_AUTH_REPOSITORY_NAME:${CI_COMMIT_TAG}
+    AUTH_LATEST_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_AUTH_REPOSITORY_NAME:latest
+
+    CLIENT_COMMIT_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_CLIENT_REPOSITORY_NAME:${CI_COMMIT_SHA}
+    CLIENT_RELEASE_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_CLIENT_REPOSITORY_NAME:${CI_COMMIT_TAG}
+    CLIENT_LATEST_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_CLIENT_REPOSITORY_NAME:latest
+
+    AGENCY_COMMIT_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_AGENCY_REPOSITORY_NAME:${CI_COMMIT_SHA}
+    AGENCY_RELEASE_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_AGENCY_REPOSITORY_NAME:${CI_COMMIT_TAG}
+    AGENCY_LATEST_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_AGENCY_REPOSITORY_NAME:latest
+
+    CURATOR_COMMIT_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_CURATOR_REPOSITORY_NAME:${CI_COMMIT_SHA}
+    CURATOR_RELEASE_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_CURATOR_REPOSITORY_NAME:${CI_COMMIT_TAG}
+    CURATOR_LATEST_IMAGE: $DOCKER_REGISTRY_URL/$DOCKER_CURATOR_REPOSITORY_NAME:latest
+
+    COVERAGE_REPORT_CONTAINER_PATH: /app/coverage
+    COVERAGE_REPORT_LCOV: lcov.info
+
+    TEST_UNIT_COMMAND: npx nx affected --base=$NX_BASE --head=$NX_HEAD -t test --parallel=2 --configuration=ci --collectCoverage
+    LCOV_MERGE_COMMAND: npx lcov-result-merger '/app/coverage/**/**/lcov.info' '/app/coverage/lcov.info'
+
+    BACKEND_COMPOSE_FILE_PATH: .deploy/compose/docker-compose-backend.yml
+    FRONTEND_COMPOSE_FILE_PATH: .deploy/compose/docker-compose-frontend.yml
+    AUTOTESTS_COMPOSE_FILE_PATH: .deploy/compose/docker-compose-autotests.yml
+
+    BACKEND_ENV_FILE_PATH: .deploy/compose/compose_env/.env.backend
+    DATABASE_ENV_FILE_PATH: .deploy/compose/compose_env/.env.database
+
+stages:
+    - build-base
+    - tests
+    - linters
+    - build auth
+    - build client
+    - build agency
+    - build curator
+    - container scanning
+    - release
+    - cleanup
+    - autotest
+    - deploy
+
+.docker-login: &docker-login
+    - echo $(aws ecr get-login-password --region "$AWS_DEFAULT_REGION") | docker login --username AWS --password-stdin $DOCKER_REGISTRY_URL
+
+.all-branches: &all-branches
+    only:
+        - branches
+
+.other-branches: &other-branches
+    only:
+        - /^feature.*$/
+        - /^hotfix.*$/
+        - /^fix.*$/
+        - /^refactor.*$/
+
+.prod-only: &prod-branch-only
+    only:
+        - main
+
+.staging-only: &staging-branch-only
+    only:
+        - /^release.*$/
+        - staging
+
+.dev-only: &dev-branch-only
+    only:
+        - develop
+
+.tags-only: &tags-only
+    only:
+        - tags
+
+.dev-env: &dev-env
+    environment:
+        name: dev
+
+.staging-env: &staging-env
+    environment:
+        name: staging
+
+.test-staging-env: &test-staging-env
+    environment:
+        name: test-staging
+
+.prod-env: &prod-env
+    environment:
+        name: production
+
+.dev-autotests-env: &dev-autotests-env
+    environment:
+        name: dev-autotests
+
+.staging-autotests-env: &staging-autotests-env
+    environment:
+        name: staging-autotests
+
+.prod-autotests-env: &prod-autotests-env
+    environment:
+        name: production-autotests
+
+.set-environment: &set-environment ### FRONTEND ENV ###
+    - echo "NX_APP_ENV=${NX_APP_ENV}" >> .env
+    - echo "NX_API_URL=${NX_API_URL}" >> .env
+    - echo "NX_APP_URL=${NX_APP_URL}" >> .env
+    - echo "NX_AUTH_FRONT_APP_URL=${NX_AUTH_FRONT_APP_URL}" >> .env
+    - echo "NX_CLIENT_FRONT_APP_URL=${NX_CLIENT_FRONT_APP_URL}" >> .env
+    - echo "NX_AGENCY_FRONT_APP_URL=${NX_AGENCY_FRONT_APP_URL}" >> .env
+    - echo "NX_CURATOR_FRONT_APP_URL=${NX_CURATOR_FRONT_APP_URL}" >> .env
+    - echo "NX_SENTRY_DSN=${NX_SENTRY_DSN}" >> .env
+    - echo "NX_SENTRY_TRACES_SAMPLE_RATE=${NX_SENTRY_TRACES_SAMPLE_RATE}" >> .env
+    - echo "NX_GOOGLE_CLIENT_ID=${NX_GOOGLE_CLIENT_ID}" >> .env
+    - echo "NX_FACEBOOK_APP_ID=${NX_FACEBOOK_APP_ID}" >> .env
+    - echo "NX_GOOGLE_API_KEY=${NX_GOOGLE_API_KEY}" >> .env
+    - echo "NX_CALENDLY_URL=${NX_CALENDLY_URL}" >> .env
+    - echo "NX_GIPHY_KEY=${NX_GIPHY_KEY}" >> .env
+    - echo "NX_INTERCOM_APP_ID=${NX_INTERCOM_APP_ID}" >> .env
+    - echo "NX_DISABLE_SENTRY=${NX_DISABLE_SENTRY}" >> .env
+    - echo "NX_STRIPE_PUBLIC_KEY=${NX_STRIPE_PUBLIC_KEY}" >> .env
+    - echo "NX_BOOKING_APP_URL=${NX_BOOKING_APP_URL}" >> .env
+    - echo "NX_PLAID_CLIENT_ID=${NX_PLAID_CLIENT_ID}" >> .env
+    - echo "NX_PLAID_SECRET_KEY=${NX_PLAID_SECRET_KEY}" >> .env
+    - echo "NX_CALENDLY_URL_PLANNING_CALL=${NX_CALENDLY_URL_PLANNING_CALL}" >> .env
+    - echo "NX_CALENDLY_URL_ONBOARDING_CALL=${NX_CALENDLY_URL_ONBOARDING_CALL}" >> .env
+    - echo "NX_CLOUD_AUTH_TOKEN=${NX_CLOUD_AUTH_TOKEN}" >> nx-cloud.env
+
+    ### BACKEND ENV FOR AUTOTESTS ###
+    - echo "SECRET_KEY=${API_SECRET_KEY}" >> $BACKEND_ENV_FILE_PATH
+    - echo "POSTGRES_PASSWORD=${CI_PIPELINE_ID}" >> $BACKEND_ENV_FILE_PATH
+    - echo "POSTGRES_PASSWORD=${CI_PIPELINE_ID}" >> $DATABASE_ENV_FILE_PATH
+    - echo "STRIPE_LIVE_MODE=${API_STRIPE_LIVE_MODE}" >> $BACKEND_ENV_FILE_PATH
+    - echo "DJSTRIPE_WEBHOOK_SECRET=${API_DJSTRIPE_WEBHOOK_SECRET}" >> $BACKEND_ENV_FILE_PATH
+    - echo "STRIPE_TEST_SECRET_KEY=${API_STRIPE_TEST_SECRET_KEY}" >> $BACKEND_ENV_FILE_PATH
+    - echo "DEFAULT_FROM_EMAIL=${API_DEFAULT_FROM_EMAIL}" >> $BACKEND_ENV_FILE_PATH
+    - echo "APP_SETTINGS=${API_APP_SETTINGS}" >> $BACKEND_ENV_FILE_PATH
+    - echo "AWS_ACCESS_KEY_ID=${API_S3_ACCESS_KEY_ID}" >> $BACKEND_ENV_FILE_PATH
+    - echo "AWS_SECRET_ACCESS_KEY=${API_S3_SECRET_ACCESS_KEY}" >> $BACKEND_ENV_FILE_PATH
+    - echo "AWS_STORAGE_BUCKET_NAME=${API_S3_STORAGE_BUCKET_NAME}" >> $BACKEND_ENV_FILE_PATH
+    - echo "AWS_S3_SIGNATURE_VERSION=${API_S3_SIGNATURE_VERSION}" >> $BACKEND_ENV_FILE_PATH
+    - echo "AWS_S3_REGION_NAME=${API_S3_REGION_NAME}" >> $BACKEND_ENV_FILE_PATH
+
+.test-template: &test-template
+    extends: .all-branches
+    stage: tests
+    allow_failure: false
+    tags:
+        - breef_runner
+
+.linters-template: &linters-template
+    extends: .all-branches
+    stage: linters
+    allow_failure: false
+    tags:
+        - breef_runner
+
+.unit-template: &unit-template
+    stage: tests
+    tags:
+        - breef_runner
+    script:
+        - docker run -t -d --name $CONTAINER_NAME-unit $BASE_IMAGE /bin/sh
+        - docker exec $CONTAINER_NAME-unit $TEST_UNIT_COMMAND
+    after_script:
+        - docker exec $CONTAINER_NAME-unit $LCOV_MERGE_COMMAND || true
+        - docker cp $CONTAINER_NAME-unit:$COVERAGE_REPORT_CONTAINER_PATH/$COVERAGE_REPORT_LCOV $COVERAGE_REPORT_LCOV || true
+        - docker rm -f $CONTAINER_NAME-unit
+    artifacts:
+        when: always
+        paths:
+            - $COVERAGE_REPORT_LCOV
+        expire_in: 90 days
+
+.autotest-template: &autotest-template
+    stage: autotest
+    tags:
+        - breef_autotests_runner
+    before_script:
+        - *docker-login
+        - *set-environment
+    script:
+        - docker-compose -p breef-$CI_PIPELINE_ID -f $BACKEND_COMPOSE_FILE_PATH -f $FRONTEND_COMPOSE_FILE_PATH -f $AUTOTESTS_COMPOSE_FILE_PATH down --volumes
+        - docker pull $BACKEND_DOCKER_REGISTRY_URL:latest || true
+        - docker-compose -p breef-$CI_PIPELINE_ID -f $BACKEND_COMPOSE_FILE_PATH -f $FRONTEND_COMPOSE_FILE_PATH up -d
+        - docker pull $AUTOTESTS_DOCKER_REGISTRY_URL:latest || true
+        - docker-compose -p breef-$CI_PIPELINE_ID -f $BACKEND_COMPOSE_FILE_PATH -f $FRONTEND_COMPOSE_FILE_PATH -f $AUTOTESTS_COMPOSE_FILE_PATH run --rm breef_autotests python prefill_db.py
+        - docker-compose -p breef-$CI_PIPELINE_ID -f $BACKEND_COMPOSE_FILE_PATH -f $FRONTEND_COMPOSE_FILE_PATH -f $AUTOTESTS_COMPOSE_FILE_PATH run --name breef-autotests-ui-$CI_PIPELINE_ID breef_autotests pytest -n 2 --reruns 3 --reruns-delay 1 -vv -m ui /app/ --alluredir /app/reports/allure-results/
+    after_script:
+        - docker cp breef-autotests-ui-$CI_PIPELINE_ID:/app/reports/allure-results allure-results || true
+        - docker-compose -p breef-$CI_PIPELINE_ID -f $BACKEND_COMPOSE_FILE_PATH -f $FRONTEND_COMPOSE_FILE_PATH -f $AUTOTESTS_COMPOSE_FILE_PATH down --volumes
+        - docker rmi $AUTOTESTS_DOCKER_REGISTRY_URL:latest || true
+        - docker rmi $BACKEND_DOCKER_REGISTRY_URL:latest || true
+    artifacts:
+        when: always
+        paths:
+            - allure-results
+        expire_in: 90 day
+
+.allure-upload-template: &allure-upload-template
+    stage: autotest
+    script:
+        - ssh ubuntu@$ALLURE_SERVER_ADDRESS "cd $ALLURE_PATH_ON_SERVER/$ALLURE_PROJECT_NAME && rm *" || true
+        - ssh ubuntu@$ALLURE_SERVER_ADDRESS "cd $ALLURE_PATH_ON_SERVER && docker-compose exec -d allure find /app/allure-docker-api/static/projects/$ALLURE_PROJECT_NAME/results -maxdepth 1 -type f -delete"
+        - scp -o StrictHostKeyChecking=no -r allure-results/** ubuntu@$ALLURE_SERVER_ADDRESS:$ALLURE_PATH_ON_SERVER/$ALLURE_PROJECT_NAME
+        - ssh ubuntu@$ALLURE_SERVER_ADDRESS "cd $ALLURE_PATH_ON_SERVER/$ALLURE_PROJECT_NAME && docker cp . allure-api:/app/allure-docker-api/static/projects/$ALLURE_PROJECT_NAME/results"
+        - curl -X POST "$ALLURE_SERVER_DOMAIN/api/allure-docker-service/login" -H  "accept:*/*" -H  "Content-Type:application/json" -d "{\"password\":\"$ALLURE_USER_PASSWORD\",\"username\":\"$ALLURE_USER_NAME\"}" -c cookie-$CI_PIPELINE_ID.txt
+        - curl -X GET "$ALLURE_SERVER_DOMAIN/api/allure-docker-service/generate-report?project_id=$ALLURE_PROJECT_NAME" -H  "accept:*/*" -b cookie-$CI_PIPELINE_ID.txt
+    after_script:
+        - rm cookie-$CI_PIPELINE_ID.txt || true
+    tags:
+        - breef_runner
+
+.sonarqube-template: &sonarqube-template
+    stage: linters
+    tags:
+        - breef_runner_dnd
+    image: sonarsource/sonar-scanner-cli
+    script:
+        - sonar-scanner
+          -Dsonar.organization="$SONAR_ORGANIZATION"
+          -Dsonar.projectKey="$SONAR_PROJECT_KEY"
+          -Dsonar.sources=.
+          -Dsonar.host.url="$SONAR_HOST_URL"
+          -Dsonar.token="$SONAR_TOKEN"
+          -Dsonar.javascript.lcov.reportPaths="$COVERAGE_REPORT_LCOV"
+          -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=300
+
+.build-base-template: &build-base-template
+    stage: build-base
+    before_script:
+        - *docker-login
+        - *set-environment
+    script:
+        - docker build
+          -f $DOCKER_FILE_PATH
+          --build-arg NX_BASE=$NX_BASE
+          --build-arg NX_HEAD=$NX_HEAD
+          --tag $BASE_IMAGE .
+    tags:
+        - breef_runner
+
+.build-auth: &build-auth
+    stage: build auth
+    before_script:
+        - *docker-login
+        - *set-environment
+    script:
+        - docker build
+          -f $AUTH_DOCKER_FILE_PATH
+          --build-arg BASE_IMAGE=$BASE_IMAGE
+          --tag $AUTH_COMMIT_IMAGE .
+    tags:
+        - breef_runner
+
+.build-client: &build-client
+    stage: build client
+    before_script:
+        - *docker-login
+        - *set-environment
+    script:
+        - docker build
+          -f $CLIENT_DOCKER_FILE_PATH
+          --build-arg BASE_IMAGE=$BASE_IMAGE
+          --tag $CLIENT_COMMIT_IMAGE .
+    tags:
+        - breef_runner
+
+.build-agency: &build-agency
+    stage: build agency
+    before_script:
+        - *docker-login
+        - *set-environment
+    script:
+        - docker build
+          -f $AGENCY_DOCKER_FILE_PATH
+          --build-arg BASE_IMAGE=$BASE_IMAGE
+          --tag $AGENCY_COMMIT_IMAGE .
+    tags:
+        - breef_runner
+
+.build-curator: &build-curator
+    stage: build curator
+    before_script:
+        - *docker-login
+        - *set-environment
+    script:
+        - docker build
+          -f $CURATOR_DOCKER_FILE_PATH
+          --build-arg BASE_IMAGE=$BASE_IMAGE
+          --tag $CURATOR_COMMIT_IMAGE .
+    tags:
+        - breef_runner
+
+.container-scanning-template: &container-scanning-template
+    variables:
+        SCANNER_IMAGE: anchore/grype:latest
+    script:
+        - docker run -i --rm --volume /var/run/docker.sock:/var/run/docker.sock $SCANNER_IMAGE $SCANNED_IMAGE
+    tags:
+        - breef_runner
+
+.registry-push-auth-template: &registry-push-auth-template
+    stage: build auth
+    variables:
+        GIT_STRATEGY: none
+    before_script:
+        - *docker-login
+    script:
+        - docker tag $AUTH_COMMIT_IMAGE $AUTH_LATEST_IMAGE
+        - docker push $AUTH_COMMIT_IMAGE
+        - docker push $AUTH_LATEST_IMAGE
+    after_script:
+        - docker rmi $AUTH_LATEST_IMAGE
+        - docker rmi $AUTH_COMMIT_IMAGE
+    tags:
+        - breef_runner
+
+.registry-push-client-template: &registry-push-client-template
+    stage: build client
+    variables:
+        GIT_STRATEGY: none
+    before_script:
+        - *docker-login
+    script:
+        - docker tag $CLIENT_COMMIT_IMAGE $CLIENT_LATEST_IMAGE
+        - docker push $CLIENT_COMMIT_IMAGE
+        - docker push $CLIENT_LATEST_IMAGE
+    after_script:
+        - docker rmi $CLIENT_LATEST_IMAGE
+        - docker rmi $CLIENT_COMMIT_IMAGE
+    tags:
+        - breef_runner
+
+.registry-push-agency-template: &registry-push-agency-template
+    stage: build agency
+    variables:
+        GIT_STRATEGY: none
+    before_script:
+        - *docker-login
+    script:
+        - docker tag $AGENCY_COMMIT_IMAGE $AGENCY_LATEST_IMAGE
+        - docker push $AGENCY_COMMIT_IMAGE
+        - docker push $AGENCY_LATEST_IMAGE
+    after_script:
+        - docker rmi $AGENCY_LATEST_IMAGE
+        - docker rmi $AGENCY_COMMIT_IMAGE
+    tags:
+        - breef_runner
+
+.registry-push-curator-template: &registry-push-curator-template
+    stage: build curator
+    variables:
+        GIT_STRATEGY: none
+    before_script:
+        - *docker-login
+    script:
+        - docker tag $CURATOR_COMMIT_IMAGE $CURATOR_LATEST_IMAGE
+        - docker push $CURATOR_COMMIT_IMAGE
+        - docker push $CURATOR_LATEST_IMAGE
+    after_script:
+        - docker rmi $CURATOR_LATEST_IMAGE
+        - docker rmi $CURATOR_COMMIT_IMAGE
+    tags:
+        - breef_runner
+
+.cleanup-template: &cleanup-template
+    stage: cleanup
+    when: always
+    script:
+        - docker rmi $BASE_IMAGE
+    tags:
+        - breef_runner
+
+.cleanup-autotests-template: &cleanup-autotests-template
+    stage: cleanup
+    when: always
+    script:
+        - docker rmi $AUTH_COMMIT_IMAGE || true
+        - docker rmi $CLIENT_COMMIT_IMAGE || true
+        - docker rmi $AGENCY_COMMIT_IMAGE || true
+        # - docker rmi $CURATOR_COMMIT_IMAGE || true
+        - docker rmi $BASE_IMAGE || true
+    tags:
+        - breef_runner
+
+.prepare-runner-template: &prepare-runner-template
+    stage: autotest
+    script:
+        - chmod +x .deploy/bash/start_stop_runner.sh
+        - bash .deploy/bash/start_stop_runner.sh starting_runner
+    tags:
+        - breef_runner
+
+.stop-runner-template: &stop-runner-template
+    stage: autotest
+    when: on_success
+    script:
+        - chmod +x .deploy/bash/start_stop_runner.sh
+        - bash .deploy/bash/start_stop_runner.sh stopping_runner
+    tags:
+        - breef_runner
+
+build:
+    extends: .build-base-template
+    needs: []
+    <<: *dev-env
+    <<: *other-branches
+
+dev:build:
+    extends: .build-base-template
+    needs: []
+    <<: *dev-env
+    <<: *dev-branch-only
+
+dev:build-auth:
+    extends: .build-auth
+    needs: ['dev:sonarqube']
+    <<: *dev-env
+    <<: *dev-branch-only
+
+dev:build-client:
+    extends: .build-client
+    needs: ['dev:push-auth']
+    <<: *dev-env
+    <<: *dev-branch-only
+
+dev:build-agency:
+    extends: .build-agency
+    needs: ['dev:push-client']
+    <<: *dev-env
+    <<: *dev-branch-only
+
+# dev:build-curator:
+#   extends: .build-curator
+#   needs: ["dev:push-agency"]
+#   <<: *dev-env
+#   <<: *dev-branch-only
+
+staging:build:
+    extends: .build-base-template
+    needs: []
+    <<: *staging-env
+    <<: *staging-branch-only
+
+staging:build-auth:
+    extends: .build-auth
+    needs: ['staging:sonarqube']
+    <<: *staging-env
+    <<: *staging-branch-only
+
+staging:build-client:
+    extends: .build-client
+    needs: ['staging:push-auth']
+    <<: *staging-env
+    <<: *staging-branch-only
+
+staging:build-agency:
+    extends: .build-agency
+    needs: ['staging:push-client']
+    <<: *staging-env
+    <<: *staging-branch-only
+
+# staging:build-curator:
+#   extends: .build-curator
+#   needs: ["staging:push-agency"]
+#   <<: *staging-env
+#   <<: *staging-branch-only
+
+# test:staging:build:
+#     extends: .build-base-template
+#     needs: []
+#     <<: *test-staging-env
+#     <<: *staging-branch-only
+
+# test:staging:build-auth:
+#     extends: .build-auth
+#     needs: ['staging:sonarqube']
+#     <<: *test-staging-env
+#     <<: *staging-branch-only
+
+# test:staging:build-client:
+#     extends: .build-client
+#     needs: ['test:staging:push-auth']
+#     <<: *test-staging-env
+#     <<: *staging-branch-only
+
+# test:staging:build-agency:
+#     extends: .build-agency
+#     needs: ['test:staging:push-client']
+#     <<: *test-staging-env
+#     <<: *staging-branch-only
+
+# test:staging:build-curator:
+#   extends: .build-curator
+#   needs: ["test:staging:push-agency"]
+#   <<: *test-staging-env
+#   <<: *staging-branch-only
+
+prod:build:
+    extends: .build-base-template
+    needs: []
+    <<: *prod-env
+    <<: *prod-branch-only
+
+prod:build-auth:
+    extends: .build-auth
+    needs: ['prod:sonarqube']
+    <<: *prod-env
+    <<: *prod-branch-only
+
+prod:build-client:
+    extends: .build-client
+    needs: ['prod:push-auth']
+    <<: *prod-env
+    <<: *prod-branch-only
+
+prod:build-agency:
+    extends: .build-agency
+    needs: ['prod:push-client']
+    <<: *prod-env
+    <<: *prod-branch-only
+
+# prod:build-curator:
+#   extends: .build-curator
+#   needs: ["prod:push-agency"]
+#   <<: *prod-env
+#   <<: *prod-branch-only
+
+unit:
+    extends: .unit-template
+    needs: ['build']
+    <<: *other-branches
+    allow_failure: true
+
+dev:unit:
+    extends: .unit-template
+    needs: ['dev:build']
+    <<: *dev-branch-only
+    allow_failure: true
+
+staging:unit:
+    extends: .unit-template
+    needs: ['staging:build']
+    <<: *staging-branch-only
+    allow_failure: true
+
+prod:unit:
+    extends: .unit-template
+    needs: ['prod:build']
+    <<: *prod-branch-only
+    allow_failure: true
+
+sonarqube:
+    extends: .sonarqube-template
+    needs: ['unit']
+    <<: *other-branches
+    allow_failure: true
+
+dev:sonarqube:
+    extends: .sonarqube-template
+    needs: ['dev:unit']
+    <<: *dev-branch-only
+    allow_failure: true
+
+staging:sonarqube:
+    extends: .sonarqube-template
+    needs: ['staging:unit']
+    <<: *staging-branch-only
+    allow_failure: true
+
+prod:sonarqube:
+    extends: .sonarqube-template
+    needs: ['prod:unit']
+    <<: *prod-branch-only
+    allow_failure: true
+
+prod:allure:
+    extends: .allure-upload-template
+    <<: *prod-branch-only
+    needs: ['prod:autotest']
+    when: on_success
+    variables:
+        ALLURE_PATH_ON_SERVER: /home/ubuntu/allure
+        ALLURE_PROJECT_NAME: production-ui
+
+# dev:container-scanning-auth:
+#     extends: .container-scanning-template
+#     stage: build auth
+#     <<: *dev-env
+#     <<: *dev-branch-only
+#     variables:
+#         SCANNED_IMAGE: $AUTH_COMMIT_IMAGE
+#     needs: ['dev:build-auth']
+#     allow_failure: true
+
+# dev:container-scanning-client:
+#     extends: .container-scanning-template
+#     stage: build client
+#     <<: *dev-env
+#     <<: *dev-branch-only
+#     variables:
+#         SCANNED_IMAGE: $CLIENT_COMMIT_IMAGE
+#     needs: ['dev:build-client']
+#     allow_failure: true
+
+# dev:container-scanning-agency:
+#     extends: .container-scanning-template
+#     stage: build agency
+#     <<: *dev-env
+#     <<: *dev-branch-only
+#     variables:
+#         SCANNED_IMAGE: $AGENCY_COMMIT_IMAGE
+#     needs: ['dev:build-agency']
+#     allow_failure: true
+
+# dev:container-scanning-curator:
+#   extends: .container-scanning-template
+#   stage: build curator
+#   <<: *dev-env
+#   <<: *dev-branch-only
+#   variables:
+#         SCANNED_IMAGE: $CURATOR_COMMIT_IMAGE
+#   needs: ["dev:build-curator"]
+#   allow_failure: true
+
+dev:push-auth:
+    extends: .registry-push-auth-template
+    <<: *dev-env
+    <<: *dev-branch-only
+    needs: ['dev:build-auth']
+
+dev:push-client:
+    extends: .registry-push-client-template
+    <<: *dev-env
+    <<: *dev-branch-only
+    needs: ['dev:build-client']
+
+dev:push-agency:
+    extends: .registry-push-agency-template
+    <<: *dev-env
+    <<: *dev-branch-only
+    needs: ['dev:build-agency']
+
+# dev:push-curator:
+#   extends: .registry-push-curator-template
+#   <<: *dev-env
+#   <<: *dev-branch-only
+#   needs: ["dev:container-scanning-curator"]
+
+# staging:container-scanning-auth:
+#     extends: .container-scanning-template
+#     stage: build auth
+#     <<: *staging-env
+#     <<: *staging-branch-only
+#     variables:
+#         SCANNED_IMAGE: $AUTH_COMMIT_IMAGE
+#     needs: ['staging:build-auth']
+#     allow_failure: true
+
+# staging:container-scanning-client:
+#     extends: .container-scanning-template
+#     stage: build client
+#     <<: *staging-env
+#     <<: *staging-branch-only
+#     variables:
+#         SCANNED_IMAGE: $CLIENT_COMMIT_IMAGE
+#     needs: ['staging:build-client']
+#     allow_failure: true
+
+# staging:container-scanning-agency:
+#     extends: .container-scanning-template
+#     stage: build agency
+#     <<: *staging-env
+#     <<: *staging-branch-only
+#     variables:
+#         SCANNED_IMAGE: $AGENCY_COMMIT_IMAGE
+#     needs: ['staging:build-agency']
+#     allow_failure: true
+
+# staging:container-scanning-curator:
+#   extends: .container-scanning-template
+#   stage: build curator
+#   <<: *staging-env
+#   <<: *staging-branch-only
+#   variables:
+#         SCANNED_IMAGE: $CURATOR_COMMIT_IMAGE
+#   needs: ["staging:build-curator"]
+#   allow_failure: true
+
+staging:push-auth:
+    extends: .registry-push-auth-template
+    <<: *staging-env
+    <<: *staging-branch-only
+    needs: ['staging:build-auth']
+
+staging:push-client:
+    extends: .registry-push-client-template
+    <<: *staging-env
+    <<: *staging-branch-only
+    needs: ['staging:build-client']
+
+staging:push-agency:
+    extends: .registry-push-agency-template
+    <<: *staging-env
+    <<: *staging-branch-only
+    needs: ['staging:build-agency']
+
+# staging:push-curator:
+#   extends: .registry-push-curator-template
+#   <<: *staging-env
+#   <<: *staging-branch-only
+#   needs: ["staging:container-scanning-curator"]
+
+# test:staging:push-auth:
+#     extends: .registry-push-auth-template
+#     <<: *test-staging-env
+#     <<: *staging-branch-only
+#     needs: ['test:staging:build-auth']
+
+# test:staging:push-client:
+#     extends: .registry-push-client-template
+#     <<: *test-staging-env
+#     <<: *staging-branch-only
+#     needs: ['test:staging:build-client']
+
+# test:staging:push-agency:
+#     extends: .registry-push-agency-template
+#     <<: *test-staging-env
+#     <<: *staging-branch-only
+#     needs: ['test:staging:build-agency']
+
+# test:staging:push-curator:
+#   extends: .registry-push-curator-template
+#   <<: *test-staging-env
+#   <<: *staging-branch-only
+#   needs: ["test:staging:build-curator"]
+
+# prod:container-scanning-auth:
+#     extends: .container-scanning-template
+#     stage: build auth
+#     <<: *prod-env
+#     <<: *prod-branch-only
+#     variables:
+#         SCANNED_IMAGE: $AUTH_COMMIT_IMAGE
+#     needs: ['prod:build-auth']
+#     allow_failure: true
+
+# prod:container-scanning-client:
+#     extends: .container-scanning-template
+#     stage: build client
+#     <<: *prod-env
+#     <<: *prod-branch-only
+#     variables:
+#         SCANNED_IMAGE: $CLIENT_COMMIT_IMAGE
+#     needs: ['prod:build-client']
+#     allow_failure: true
+
+# prod:container-scanning-agency:
+#     extends: .container-scanning-template
+#     stage: build agency
+#     <<: *prod-env
+#     <<: *prod-branch-only
+#     variables:
+#         SCANNED_IMAGE: $AGENCY_COMMIT_IMAGE
+#     needs: ['prod:build-agency']
+#     allow_failure: true
+
+# prod:container-scanning-curator:
+#   extends: .container-scanning-template
+#   stage: build curator
+#   <<: *prod-env
+#   <<: *prod-branch-only
+#   variables:
+#         SCANNED_IMAGE: $CURATOR_COMMIT_IMAGE
+#   needs: ["prod:build-curator"]
+#   allow_failure: true
+
+prod:push-auth:
+    extends: .registry-push-auth-template
+    <<: *prod-env
+    <<: *prod-branch-only
+    needs: ['prod:build-auth']
+
+prod:push-client:
+    extends: .registry-push-client-template
+    <<: *prod-env
+    <<: *prod-branch-only
+    needs: ['prod:build-client']
+
+prod:push-agency:
+    extends: .registry-push-agency-template
+    <<: *prod-env
+    <<: *prod-branch-only
+    needs: ['prod:build-agency']
+
+# prod:push-curator:
+#   extends: .registry-push-curator-template
+#   <<: *prod-env
+#   <<: *prod-branch-only
+#   needs: ["prod:container-scanning-curator"]
+
+release:
+    stage: release
+    <<: *prod-env
+    before_script:
+        - *docker-login
+    script:
+        - docker pull $AUTH_COMMIT_IMAGE
+        - docker pull $CLIENT_COMMIT_IMAGE
+        - docker pull $AGENCY_COMMIT_IMAGE
+        # - docker pull $CURATOR_COMMIT_IMAGE
+
+        - docker tag $AUTH_COMMIT_IMAGE $AUTH_RELEASE_IMAGE
+        - docker tag $CLIENT_COMMIT_IMAGE $CLIENT_RELEASE_IMAGE
+        - docker tag $AGENCY_COMMIT_IMAGE $AGENCY_RELEASE_IMAGE
+        # - docker tag $CURATOR_COMMIT_IMAGE $CURATOR_RELEASE_IMAGE
+
+        - docker push $AUTH_RELEASE_IMAGE
+        - docker push $CLIENT_RELEASE_IMAGE
+        - docker push $AGENCY_RELEASE_IMAGE
+        # - docker push $CURATOR_RELEASE_IMAGE
+    after_script:
+        - docker rmi $AUTH_RELEASE_IMAGE
+        - docker rmi $AUTH_COMMIT_IMAGE
+        - docker rmi $CLIENT_RELEASE_IMAGE
+        - docker rmi $CLIENT_COMMIT_IMAGE
+        - docker rmi $AGENCY_RELEASE_IMAGE
+        - docker rmi $AGENCY_COMMIT_IMAGE
+        # - docker rmi $CURATOR_RELEASE_IMAGE
+        # - docker rmi $CURATOR_COMMIT_IMAGE
+    rules:
+        - if: $CI_COMMIT_TAG =~ /^v\d+.\d+.\d+/
+          when: always
+    tags:
+        - breef_runner
+
+dev:deploy:
+    stage: deploy
+    <<: *dev-branch-only
+    needs: ['dev:push-auth', 'dev:push-client', 'dev:push-agency']
+    variables:
+        DEPLOY_DEVELOP_FRONTEND: 'true'
+    trigger:
+        project: breef_app/deployment
+        branch: master
+        strategy: depend
+
+cleanup:
+    extends: .cleanup-template
+    needs: ['unit']
+    <<: *other-branches
+
+dev:cleanup:
+    extends: .cleanup-template
+    needs: ['dev:push-agency']
+    <<: *dev-env
+    <<: *dev-branch-only
+
+staging:cleanup:
+    extends: .cleanup-template
+    needs: ['staging:push-agency']
+    <<: *staging-env
+    <<: *staging-branch-only
+
+prod:cleanup:
+    extends: .cleanup-template
+    needs: ['prod:push-agency']
+    <<: *prod-env
+    <<: *prod-branch-only
+
+dev:prepare_runner:
+    extends: .prepare-runner-template
+    stage: autotest
+    when: manual
+    needs: []
+    <<: *dev-branch-only
+
+dev:build:autotest:
+    extends: .build-base-template
+    stage: autotest
+    needs: ['dev:prepare_runner']
+    <<: *dev-autotests-env
+    <<: *dev-branch-only
+    tags:
+        - breef_autotests_runner
+
+dev:build-auth:autotest:
+    extends: .build-auth
+    stage: autotest
+    needs: ['dev:build:autotest']
+    <<: *dev-autotests-env
+    <<: *dev-branch-only
+    tags:
+        - breef_autotests_runner
+
+dev:build-client:autotest:
+    extends: .build-client
+    stage: autotest
+    needs: ['dev:build-auth:autotest']
+    <<: *dev-autotests-env
+    <<: *dev-branch-only
+    tags:
+        - breef_autotests_runner
+
+dev:build-agency:autotest:
+    extends: .build-agency
+    stage: autotest
+    needs: ['dev:build-client:autotest']
+    <<: *dev-autotests-env
+    <<: *dev-branch-only
+    tags:
+        - breef_autotests_runner
+
+# dev:build-curator:autotest:
+#     extends: .build-curator
+#     stage: autotest
+#     needs: ["dev:build-agency:autotest"]
+#     <<: *dev-autotests-env
+#     <<: *dev-branch-only
+#     tags:
+#         - breef_autotests_runner
+
+dev:autotest:
+    extends: .autotest-template
+    stage: autotest
+    when: on_success
+    needs: ['dev:build-agency:autotest']
+    <<: *dev-autotests-env
+    <<: *dev-branch-only
+    allow_failure: true
+    tags:
+        - breef_autotests_runner
+
+staging:prepare_runner:
+    extends: .prepare-runner-template
+    stage: autotest
+    when: manual
+    needs: []
+    <<: *staging-branch-only
+
+staging:build:autotest:
+    extends: .build-base-template
+    stage: autotest
+    needs: ['staging:prepare_runner']
+    <<: *staging-autotests-env
+    <<: *staging-branch-only
+    tags:
+        - breef_autotests_runner
+
+staging:build-auth:autotest:
+    extends: .build-auth
+    stage: autotest
+    needs: ['staging:build:autotest']
+    <<: *staging-autotests-env
+    <<: *staging-branch-only
+    tags:
+        - breef_autotests_runner
+
+staging:build-client:autotest:
+    extends: .build-client
+    stage: autotest
+    needs: ['staging:build-auth:autotest']
+    <<: *staging-autotests-env
+    <<: *staging-branch-only
+    tags:
+        - breef_autotests_runner
+
+staging:build-agency:autotest:
+    extends: .build-agency
+    stage: autotest
+    needs: ['staging:build-client:autotest']
+    <<: *staging-autotests-env
+    <<: *staging-branch-only
+    tags:
+        - breef_autotests_runner
+
+# staging:build-curator:autotest:
+#     extends: .build-curator
+#     stage: autotest
+#     needs: ["staging:build-agency:autotest"]
+#     <<: *staging-autotests-env
+#     <<: *staging-branch-only
+#     tags:
+#         - breef_autotests_runner
+
+staging:autotest:
+    extends: .autotest-template
+    stage: autotest
+    when: on_success
+    needs: ['staging:build-agency:autotest']
+    <<: *staging-autotests-env
+    <<: *staging-branch-only
+    allow_failure: true
+    tags:
+        - breef_autotests_runner
+
+prod:prepare_runner:
+    extends: .prepare-runner-template
+    stage: autotest
+    when: manual
+    needs: []
+    <<: *prod-branch-only
+
+prod:build:autotest:
+    extends: .build-base-template
+    stage: autotest
+    needs: ['prod:prepare_runner']
+    <<: *prod-autotests-env
+    <<: *prod-branch-only
+    tags:
+        - breef_autotests_runner
+
+prod:build-auth:autotest:
+    extends: .build-auth
+    stage: autotest
+    needs: ['prod:build:autotest']
+    <<: *prod-autotests-env
+    <<: *prod-branch-only
+    tags:
+        - breef_autotests_runner
+
+prod:build-client:autotest:
+    extends: .build-client
+    stage: autotest
+    needs: ['prod:build-auth:autotest']
+    <<: *prod-autotests-env
+    <<: *prod-branch-only
+    tags:
+        - breef_autotests_runner
+
+prod:build-agency:autotest:
+    extends: .build-agency
+    stage: autotest
+    needs: ['prod:build-client:autotest']
+    <<: *prod-autotests-env
+    <<: *prod-branch-only
+    tags:
+        - breef_autotests_runner
+
+# prod:build-curator:autotest:
+#     extends: .build-curator
+#     stage: autotest
+#     needs: ["prod:build-agency:autotest"]
+#     <<: *prod-autotests-env
+#     <<: *prod-branch-only
+#     tags:
+#         - breef_autotests_runner
+
+prod:autotest:
+    extends: .autotest-template
+    stage: autotest
+    when: on_success
+    needs: ['prod:build-agency:autotest']
+    <<: *prod-autotests-env
+    <<: *prod-branch-only
+    allow_failure: true
+    tags:
+        - breef_autotests_runner
+
+dev:cleanup:autotest:
+    extends: .cleanup-autotests-template
+    stage: autotest
+    when: on_success
+    needs: ['dev:autotest']
+    <<: *dev-autotests-env
+    <<: *dev-branch-only
+    tags:
+        - breef_autotests_runner
+
+dev:cleanup:autotest:on_failure:
+    extends: .cleanup-autotests-template
+    stage: autotest
+    when: on_failure
+    needs: ['dev:autotest']
+    <<: *dev-autotests-env
+    <<: *dev-branch-only
+    tags:
+        - breef_autotests_runner
+
+dev:stop_runner:
+    extends: .stop-runner-template
+    stage: autotest
+    needs: ['dev:cleanup:autotest']
+    <<: *dev-branch-only
+
+dev:stop_runner:on_failure:
+    extends: .stop-runner-template
+    stage: autotest
+    needs: ['dev:cleanup:autotest:on_failure']
+    <<: *dev-branch-only
+
+staging:cleanup:autotest:
+    extends: .cleanup-autotests-template
+    stage: autotest
+    when: on_success
+    needs: ['staging:autotest']
+    <<: *staging-autotests-env
+    <<: *staging-branch-only
+    tags:
+        - breef_autotests_runner
+
+staging:cleanup:autotest:on_failure:
+    extends: .cleanup-autotests-template
+    stage: autotest
+    when: on_failure
+    needs: ['staging:autotest']
+    <<: *staging-autotests-env
+    <<: *staging-branch-only
+    tags:
+        - breef_autotests_runner
+
+staging:stop_runner:
+    extends: .stop-runner-template
+    stage: autotest
+    needs: ['staging:cleanup:autotest']
+    <<: *staging-branch-only
+
+staging:stop_runner:on_failure:
+    extends: .stop-runner-template
+    stage: autotest
+    needs: ['staging:cleanup:autotest:on_failure']
+    <<: *staging-branch-only
+
+prod:cleanup:autotest:
+    extends: .cleanup-autotests-template
+    stage: autotest
+    when: on_success
+    needs: ['prod:autotest']
+    <<: *prod-autotests-env
+    <<: *prod-branch-only
+    tags:
+        - breef_autotests_runner
+
+prod:cleanup:autotest:on_failure:
+    extends: .cleanup-autotests-template
+    stage: autotest
+    when: on_failure
+    needs: ['prod:autotest']
+    <<: *prod-autotests-env
+    <<: *prod-branch-only
+    tags:
+        - breef_autotests_runner
+
+prod:stop_runner:
+    extends: .stop-runner-template
+    stage: autotest
+    needs: ['prod:cleanup:autotest']
+    <<: *prod-branch-only
+
+prod:stop_runner:on_failure:
+    extends: .stop-runner-template
+    stage: autotest
+    needs: ['prod:cleanup:autotest:on_failure']
+    <<: *prod-branch-only
