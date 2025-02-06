@@ -97,8 +97,6 @@ The test files will be stored in the same folder as the component files / stores
 reusable code (libs and shared folders) .
 In the apps folders, the files with tests will be stored in the specs folder.
 
-In more detail: https://confluence.light-it.tools/display/PRCNP/Libraries+licenses
-
 ## <span style="color: #9f4a19">Setting up Dev:</span>
 
 Clone down this repository. You will need `node` and `npm` installed globally on your machine.
